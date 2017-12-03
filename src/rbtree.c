@@ -257,7 +257,7 @@ static void resolve_double_black(struct node *p, struct node *n)
 // children might be null in case of target node have no children.
 static void rebalance_deletion(struct node *p, struct node *n, struct node *c)
 {
-	if (n->type == node_red || c && c->type == node_red) {
+	if ((n->type == node_red) || (c && c->type == node_red)) {
 		// either target node or its children is red.
 		if (c) {
 			c->type = node_black;
