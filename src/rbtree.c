@@ -173,26 +173,50 @@ static void rebalance_insertion(struct node *i)
 
 // all parameters are never null.
 // s will always black.
-static void rotate_sibling_with_red_child(struct node *p, struct node *s, struct node *r)
+static void rotate_sibling_with_red_child(struct node *p, struct node *s)
 {
 	if (s == p->left) {
-		// TODO:
+		// sibgling is on the left.
+		if (s->left && s->left->type == node_red) {
+			// red child of sibling is on the left or both children are red.
+			rotate_right(p);
+			swap_color(p, s);
+			s->left->type = node_black;
+		} else {
+			// red child of sibling is on the right.
+			rotate_left(s);
+			swap_color(s, s->right);
+			rotate_sibling_with_red_child(p, s->right);
+		}
 	} else {
 		// sibling is on the right.
-		if (r == s->left) {
-			// TODO:
+		if (s->right && s->right->type == node_red) {
+			// red child of sibling is on the right or both children are red.
+			rotate_left(p);
+			swap_color(p, s);
+			s->right->type = node_black;
 		} else {
-			// TODO:
+			// red child of sibling is on the left.
+			rotate_right(s);
+			swap_color(s, s->left);
+			rotate_sibling_with_red_child(p, s->left);
 		}
 	}
 }
 
-// n is double black, so it might be null.
+// n is double black, so it might be null. p might also be null in case of n became root.
 static void resolve_double_black(struct node *p, struct node *n)
 {
+	struct node *s;
+
+	if (!p) {
+		// n is a new root.
+		return;
+	}
+
 	// sibling is never null since the deleted node is black.
 	// that mean it have at least one black on the other side.
-	struct node *s = (n == p->left) ? p->right : p->left;
+	s = (n == p->left) ? p->right : p->left;
 
 	if (s->type == node_black) {
 		// sibling is black.
@@ -201,16 +225,17 @@ static void resolve_double_black(struct node *p, struct node *n)
 		sl = s->left;
 		sr = s->right;
 
-		if (sl && sl->type == node_red) {
-			rotate_sibling_with_red_child(p, s, sl);
-		} else if (sr && sr->type == node_red) {
-			rotate_sibling_with_red_child(p, s, sr);
+		if ((sl && sl->type == node_red) || (sr && sr->type == node_red)) {
+			// at least one of sibling's children are red.
+			rotate_sibling_with_red_child(p, s);
 		} else {
 			// both children of sibling are black.
+			s->type = node_red;
+
 			if (p->type == node_red) {
-				swap_color(p, s);
+				p->type = node_black;
 			} else {
-				// TODO:
+				resolve_double_black(p->parent, p);
 			}
 		}
 	} else {
@@ -237,13 +262,10 @@ static void rebalance_deletion(struct node *p, struct node *n, struct node *c)
 		if (c) {
 			c->type = node_black;
 		}
-	} else if (p) {
+	} else {
 		// both target node and its child node are black.
 		// now children will become double black.
 		resolve_double_black(p, c);
-	} else {
-		// both target node and its child node are black but now children become root.
-		// nothing to do.
 	}
 }
 
