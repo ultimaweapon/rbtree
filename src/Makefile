@@ -1,7 +1,7 @@
 .PHONY: all clean
 
 OUTPUT = librbtree.a
-CPPFLAGS = -Wall -I../include
+CPPFLAGS = -O3 -Wall -I../include
 SOURCES = rbtree.c
 
 all: $(OUTPUT)

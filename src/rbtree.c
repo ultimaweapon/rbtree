@@ -1,9 +1,7 @@
 #include "rbtree.h"
 
-#include <errno.h>
+#include <stdbool.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 enum nodetype {
@@ -20,8 +18,9 @@ struct node {
 };
 
 struct rbtree {
+	rbtree_alloc_t alloc;
+	rbtree_free_t free;
 	rbtree_comparer_t comparer;
-	rbtree_free_t vfree;
 	struct node *root;
 };
 
@@ -176,7 +175,7 @@ static void rebalance_insertion(struct node *i)
 static void rotate_sibling_with_red_child(struct node *p, struct node *s)
 {
 	if (s == p->left) {
-		// sibgling is on the left.
+		// sibling is on the left.
 		if (s->left && s->left->type == node_red) {
 			// red child of sibling is on the left or both children are red.
 			rotate_right(p);
@@ -299,9 +298,9 @@ static void free_node(struct rbtree *t, struct node *n)
 	// free target node.
 	if (n->value) {
 		// value might already moved to another node, so check before freeing it.
-		t->vfree(n->value);
+		t->free(n->value);
 	}
-	free(n);
+	t->free(n);
 }
 
 static void delete_node(struct rbtree *t, struct node *n)
@@ -315,7 +314,7 @@ static void delete_node(struct rbtree *t, struct node *n)
 		}
 
 		// move the value of largest node to target node.
-		t->vfree(n->value);
+		t->free(n->value);
 		n->value = max->value;
 		max->value = NULL;
 
@@ -325,36 +324,35 @@ static void delete_node(struct rbtree *t, struct node *n)
 	}
 }
 
-struct rbtree * rbtree_new(rbtree_comparer_t c, rbtree_free_t f)
+rbtree_t rbtree_new(rbtree_alloc_t a, rbtree_free_t f, rbtree_comparer_t c)
 {
 	struct rbtree *t;
 
 	// setup data.
-	t = calloc(1, sizeof(t[0]));
+	t = a(sizeof(t[0]));
 	if (!t) {
-		const char *reason = strerror(errno);
-		fprintf(stderr, "Failed to allocated data for Red-black tree: %s.\n", reason);
 		return NULL;
 	}
 
+	memset(t, 0, sizeof(t[0]));
+	t->alloc = a;
+	t->free = f;
 	t->comparer = c;
-	t->vfree = f;
 
 	return t;
 }
 
-bool rbtree_insert(struct rbtree *t, void *v)
+enum rbtree_result rbtree_insert(rbtree_t t, void *v)
 {
 	struct node *n;
 
 	// allocate node.
-	n = calloc(1, sizeof(n[0]));
+	n = t->alloc(sizeof(n[0]));
 	if (!n) {
-		const char *reason = strerror(errno);
-		fprintf(stderr, "Failed to allocated node for Red-black tree: %s.\n", reason);
-		return false;
+		return rbtree_nomem;
 	}
 
+	memset(n, 0, sizeof(n[0]));
 	n->type = node_red;
 	n->value = v;
 
@@ -384,14 +382,14 @@ bool rbtree_insert(struct rbtree *t, void *v)
 				}
 				current = current->left;
 			} else {
-				return false;
+				return rbtree_exists;
 			}
 		}
 	}
 
 	rebalance_insertion(n);
 
-	return true;
+	return rbtree_success;
 }
 
 bool rbtree_delete(struct rbtree *t, void *k)
