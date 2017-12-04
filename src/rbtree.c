@@ -61,6 +61,22 @@ static void reverse_color(struct rbtree_node *n)
 	n->type = (n->type == node_black) ? node_red : node_black;
 }
 
+static void enumerate_node(struct rbtree_node *n, rbtree_enum_t h, void *ctx)
+{
+	struct rbtree_node *l, *r;
+
+	if (!n) {
+		return;
+	}
+
+	l = n->left;
+	r = n->right;
+
+	enumerate_node(l, h, ctx);
+	h(n, ctx);
+	enumerate_node(r, h, ctx);
+}
+
 static void rotate_left(struct rbtree_node *n)
 {
 	struct rbtree_node *p = n->parent;
@@ -431,7 +447,7 @@ bool rbtree_delete(rbtree_t t, const void *v)
 	return false;
 }
 
-void * rbtree_find(rbtree_t t, const void *v)
+rbtree_node_t rbtree_find(rbtree_t t, const void *v)
 {
 	struct rbtree_node *current = t->root;
 
@@ -443,9 +459,19 @@ void * rbtree_find(rbtree_t t, const void *v)
 		} else if (cmp < 0) {
 			current = current->left;
 		} else {
-			return &current[1];
+			return current;
 		}
 	}
 
 	return NULL;
+}
+
+void rbtree_enum(rbtree_t t, rbtree_enum_t h, void *ctx)
+{
+	enumerate_node(t->root, h, ctx);
+}
+
+void * rbtree_node_value(rbtree_node_t n)
+{
+	return &n[1];
 }
