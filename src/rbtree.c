@@ -11,7 +11,6 @@ enum nodetype {
 
 struct rbtree_node {
 	enum nodetype type;
-	void *value;
 	struct rbtree_node *parent;
 	struct rbtree_node *left;
 	struct rbtree_node *right;
@@ -20,7 +19,9 @@ struct rbtree_node {
 struct rbtree {
 	rbtree_alloc_t alloc;
 	rbtree_free_t free;
-	rbtree_comparer_t comparer;
+	rbtree_comparer_t compare;
+	rbtree_size_t size;
+	rbtree_destroy_t destroy;
 	struct rbtree_node *root;
 };
 
@@ -35,6 +36,24 @@ static void swap_color(struct rbtree_node *first, struct rbtree_node *second)
 
 	first->type = st;
 	second->type = ft;
+}
+
+static void swap_node(struct rbtree_node *f, struct rbtree_node *s)
+{
+	enum nodetype ft = f->type;
+	struct rbtree_node *fp = f->parent;
+	struct rbtree_node *fl = f->left;
+	struct rbtree_node *fr = f->right;
+
+	f->type = s->type;
+	f->parent = s->parent;
+	f->left = s->left;
+	f->right = s->right;
+
+	s->type = ft;
+	s->parent = fp;
+	s->left = fl;
+	s->right = fr;
 }
 
 static void reverse_color(struct rbtree_node *n)
@@ -296,9 +315,8 @@ static void free_node(struct rbtree *t, struct rbtree_node *n)
 	rebalance_deletion(p, n, c);
 
 	// free target node.
-	if (n->value) {
-		// value might already moved to another node, so check before freeing it.
-		t->free(n->value);
+	if (t->destroy) {
+		t->destroy(&n[1]);
 	}
 	t->free(n);
 }
@@ -314,47 +332,48 @@ static void delete_node(struct rbtree *t, struct rbtree_node *n)
 		}
 
 		// move the value of largest node to target node.
-		t->free(n->value);
-		n->value = max->value;
-		max->value = NULL;
-
-		free_node(t, max);
-	} else {
-		free_node(t, n);
+		swap_node(n, max);
 	}
+
+	free_node(t, n);
 }
 
-rbtree_t rbtree_new(rbtree_alloc_t a, rbtree_free_t f, rbtree_comparer_t c)
+rbtree_t rbtree_new(const struct rbtree_init *i)
 {
 	struct rbtree *t;
 
 	// setup data.
-	t = a(sizeof(t[0]));
+	t = i->alloc(sizeof(t[0]));
 	if (!t) {
 		return NULL;
 	}
 
 	memset(t, 0, sizeof(t[0]));
-	t->alloc = a;
-	t->free = f;
-	t->comparer = c;
+	t->alloc = i->alloc;
+	t->free = i->free;
+	t->compare = i->compare;
+	t->size = i->size;
+	t->destroy = i->destroy;
 
 	return t;
 }
 
-enum rbtree_result rbtree_insert(rbtree_t t, void *v)
+enum rbtree_result rbtree_insert(rbtree_t t, const void *v)
 {
+	size_t vs;
 	struct rbtree_node *n;
 
 	// allocate node.
-	n = t->alloc(sizeof(n[0]));
+	vs = t->size(v);
+	n = t->alloc(sizeof(n[0]) + vs);
 	if (!n) {
 		return rbtree_nomem;
 	}
 
+	// initialize node.
 	memset(n, 0, sizeof(n[0]));
 	n->type = node_red;
-	n->value = v;
+	memcpy(&n[1], v, vs);
 
 	// insert node.
 	if (!t->root) {
@@ -363,7 +382,7 @@ enum rbtree_result rbtree_insert(rbtree_t t, void *v)
 		struct rbtree_node *current = t->root;
 
 		for (;;) {
-			int cmp = t->comparer(v, current->value);
+			int cmp = t->compare(v, &current[1]);
 
 			if (cmp > 0) {
 				if (!current->right) {
@@ -392,12 +411,12 @@ enum rbtree_result rbtree_insert(rbtree_t t, void *v)
 	return rbtree_success;
 }
 
-bool rbtree_delete(struct rbtree *t, void *k)
+bool rbtree_delete(rbtree_t t, const void *v)
 {
 	struct rbtree_node *current = t->root;
 
 	while (current) {
-		int cmp = t->comparer(k, current->value);
+		int cmp = t->compare(v, &current[1]);
 
 		if (cmp > 0) {
 			current = current->right;
@@ -412,19 +431,19 @@ bool rbtree_delete(struct rbtree *t, void *k)
 	return false;
 }
 
-void * rbtree_find(struct rbtree *t, void *k)
+void * rbtree_find(rbtree_t t, const void *v)
 {
 	struct rbtree_node *current = t->root;
 
 	while (current) {
-		int cmp = t->comparer(k, current->value);
+		int cmp = t->compare(v, &current[1]);
 
 		if (cmp > 0) {
 			current = current->right;
 		} else if (cmp < 0) {
 			current = current->left;
 		} else {
-			return current->value;
+			return &current[1];
 		}
 	}
 
