@@ -354,6 +354,16 @@ static void delete_node(struct rbtree *t, struct rbtree_node *n)
 	free_node(t, n);
 }
 
+static void destroy_node(rbtree_node_t node, void *context)
+{
+	struct rbtree *t = context;
+
+	if (t->destroy) {
+		t->destroy(&node[1]);
+	}
+	t->free(node);
+}
+
 rbtree_t rbtree_new(const struct rbtree_init *i)
 {
 	struct rbtree *t;
@@ -372,6 +382,12 @@ rbtree_t rbtree_new(const struct rbtree_init *i)
 	t->destroy = i->destroy;
 
 	return t;
+}
+
+void rbtree_free(rbtree_t t)
+{
+	rbtree_enum(t, destroy_node, t);
+	t->free(t);
 }
 
 enum rbtree_result rbtree_insert(rbtree_t t, const void *v)

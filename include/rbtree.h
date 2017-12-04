@@ -32,6 +32,7 @@ struct rbtree_init {
 };
 
 rbtree_t rbtree_new(const struct rbtree_init *i);
+void rbtree_free(rbtree_t t);
 
 enum rbtree_result rbtree_insert(rbtree_t t, const void *v);
 bool rbtree_delete(rbtree_t t, const void *v);
