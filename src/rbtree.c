@@ -17,6 +17,7 @@ struct rbtree_node {
 };
 
 struct rbtree {
+	size_t node;
 	rbtree_alloc_t alloc;
 	rbtree_free_t free;
 	rbtree_comparer_t compare;
@@ -439,6 +440,7 @@ enum rbtree_result rbtree_insert(rbtree_t t, const void *v)
 	}
 
 	rebalance_insertion(n);
+	t->node++;
 
 	return rbtree_success;
 }
@@ -456,11 +458,17 @@ bool rbtree_delete(rbtree_t t, const void *v)
 			current = current->left;
 		} else {
 			delete_node(t, current);
+			t->node--;
 			return true;
 		}
 	}
 
 	return false;
+}
+
+size_t rbtree_size(rbtree_t t)
+{
+	return t->node;
 }
 
 rbtree_node_t rbtree_find(rbtree_t t, const void *v)

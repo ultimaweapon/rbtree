@@ -37,6 +37,7 @@ void rbtree_free(rbtree_t t);
 enum rbtree_result rbtree_insert(rbtree_t t, const void *v);
 bool rbtree_delete(rbtree_t t, const void *v);
 
+size_t rbtree_size(rbtree_t t);
 rbtree_node_t rbtree_find(rbtree_t t, const void *v);
 void rbtree_enum(rbtree_t t, rbtree_enum_t h, void *ctx);
 
