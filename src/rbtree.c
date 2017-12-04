@@ -9,24 +9,24 @@ enum nodetype {
 	node_red
 };
 
-struct node {
+struct rbtree_node {
 	enum nodetype type;
 	void *value;
-	struct node *parent;
-	struct node *left;
-	struct node *right;
+	struct rbtree_node *parent;
+	struct rbtree_node *left;
+	struct rbtree_node *right;
 };
 
 struct rbtree {
 	rbtree_alloc_t alloc;
 	rbtree_free_t free;
 	rbtree_comparer_t comparer;
-	struct node *root;
+	struct rbtree_node *root;
 };
 
-static void rebalance_insertion(struct node *i);
+static void rebalance_insertion(struct rbtree_node *i);
 
-static void swap_color(struct node *first, struct node *second)
+static void swap_color(struct rbtree_node *first, struct rbtree_node *second)
 {
 	enum nodetype ft, st;
 
@@ -37,15 +37,15 @@ static void swap_color(struct node *first, struct node *second)
 	second->type = ft;
 }
 
-static void reverse_color(struct node *n)
+static void reverse_color(struct rbtree_node *n)
 {
 	n->type = (n->type == node_black) ? node_red : node_black;
 }
 
-static void rotate_left(struct node *n)
+static void rotate_left(struct rbtree_node *n)
 {
-	struct node *p = n->parent;
-	struct node *r = n->right;
+	struct rbtree_node *p = n->parent;
+	struct rbtree_node *r = n->right;
 
 	if (!r) {
 		// no right node for moving to the top.
@@ -73,10 +73,10 @@ static void rotate_left(struct node *n)
 	n->parent = r;
 }
 
-static void rotate_right(struct node *n)
+static void rotate_right(struct rbtree_node *n)
 {
-	struct node *p = n->parent;
-	struct node *l = n->left;
+	struct rbtree_node *p = n->parent;
+	struct rbtree_node *l = n->left;
 
 	if (!l) {
 		// no left node for moving to the top.
@@ -104,7 +104,7 @@ static void rotate_right(struct node *n)
 	n->parent = l;
 }
 
-static void rotate(struct node *i, struct node *p, struct node *g, struct node *u)
+static void rotate(struct rbtree_node *i, struct rbtree_node *p, struct rbtree_node *g, struct rbtree_node *u)
 {
 	// the only value that can be null is uncle. the uncle is always black when
 	// we need to rotate.
@@ -135,10 +135,10 @@ static void rotate(struct node *i, struct node *p, struct node *g, struct node *
 	}
 }
 
-static void rebalance_insertion(struct node *i)
+static void rebalance_insertion(struct rbtree_node *i)
 {
 	// inserted node is always red.
-	struct node *p = i->parent;
+	struct rbtree_node *p = i->parent;
 
 	if (!p) {
 		// target node is the root node.
@@ -146,7 +146,7 @@ static void rebalance_insertion(struct node *i)
 	} else if (p->type == node_red) {
 		// current node and parent node are red node. all children of red node
 		// must be black. we need to fix this. fixing method is depend on uncle node.
-		struct node *g, *u;
+		struct rbtree_node *g, *u;
 
 		// there is a grand parent for sure since parent is red.
 		g = p->parent;
@@ -172,7 +172,7 @@ static void rebalance_insertion(struct node *i)
 
 // all parameters are never null.
 // s will always black.
-static void rotate_sibling_with_red_child(struct node *p, struct node *s)
+static void rotate_sibling_with_red_child(struct rbtree_node *p, struct rbtree_node *s)
 {
 	if (s == p->left) {
 		// sibling is on the left.
@@ -204,9 +204,9 @@ static void rotate_sibling_with_red_child(struct node *p, struct node *s)
 }
 
 // n is double black, so it might be null. p might also be null in case of n became root.
-static void resolve_double_black(struct node *p, struct node *n)
+static void resolve_double_black(struct rbtree_node *p, struct rbtree_node *n)
 {
-	struct node *s;
+	struct rbtree_node *s;
 
 	if (!p) {
 		// n is a new root.
@@ -219,7 +219,7 @@ static void resolve_double_black(struct node *p, struct node *n)
 
 	if (s->type == node_black) {
 		// sibling is black.
-		struct node *sl, *sr;
+		struct rbtree_node *sl, *sr;
 
 		sl = s->left;
 		sr = s->right;
@@ -254,7 +254,7 @@ static void resolve_double_black(struct node *p, struct node *n)
 }
 
 // children might be null in case of target node have no children.
-static void rebalance_deletion(struct node *p, struct node *n, struct node *c)
+static void rebalance_deletion(struct rbtree_node *p, struct rbtree_node *n, struct rbtree_node *c)
 {
 	if ((n->type == node_red) || (c && c->type == node_red)) {
 		// either target node or its children is red.
@@ -269,9 +269,9 @@ static void rebalance_deletion(struct node *p, struct node *n, struct node *c)
 }
 
 // a node that can be free must either have one children or no children.
-static void free_node(struct rbtree *t, struct node *n)
+static void free_node(struct rbtree *t, struct rbtree_node *n)
 {
-	struct node *p, *c;
+	struct rbtree_node *p, *c;
 
 	p = n->parent;
 	c = n->left ? n->left : n->right;
@@ -303,11 +303,11 @@ static void free_node(struct rbtree *t, struct node *n)
 	t->free(n);
 }
 
-static void delete_node(struct rbtree *t, struct node *n)
+static void delete_node(struct rbtree *t, struct rbtree_node *n)
 {
 	if (n->left && n->right) {
 		// find the largest node on the left side.
-		struct node *max = n->left;
+		struct rbtree_node *max = n->left;
 
 		while (max->right) {
 			max = max->right;
@@ -344,7 +344,7 @@ rbtree_t rbtree_new(rbtree_alloc_t a, rbtree_free_t f, rbtree_comparer_t c)
 
 enum rbtree_result rbtree_insert(rbtree_t t, void *v)
 {
-	struct node *n;
+	struct rbtree_node *n;
 
 	// allocate node.
 	n = t->alloc(sizeof(n[0]));
@@ -360,7 +360,7 @@ enum rbtree_result rbtree_insert(rbtree_t t, void *v)
 	if (!t->root) {
 		t->root = n;
 	} else {
-		struct node *current = t->root;
+		struct rbtree_node *current = t->root;
 
 		for (;;) {
 			int cmp = t->comparer(v, current->value);
@@ -394,7 +394,7 @@ enum rbtree_result rbtree_insert(rbtree_t t, void *v)
 
 bool rbtree_delete(struct rbtree *t, void *k)
 {
-	struct node *current = t->root;
+	struct rbtree_node *current = t->root;
 
 	while (current) {
 		int cmp = t->comparer(k, current->value);
@@ -414,7 +414,7 @@ bool rbtree_delete(struct rbtree *t, void *k)
 
 void * rbtree_find(struct rbtree *t, void *k)
 {
-	struct node *current = t->root;
+	struct rbtree_node *current = t->root;
 
 	while (current) {
 		int cmp = t->comparer(k, current->value);
