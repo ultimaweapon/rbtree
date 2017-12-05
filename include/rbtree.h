@@ -10,12 +10,6 @@ struct rbtree_node;
 typedef struct rbtree *rbtree_t;
 typedef struct rbtree_node *rbtree_node_t;
 
-enum rbtree_result {
-	rbtree_success,
-	rbtree_nomem,
-	rbtree_exists
-};
-
 typedef void * (*rbtree_alloc_t) (size_t bytes);
 typedef void (*rbtree_free_t) (void *ptr);
 typedef int (*rbtree_comparer_t) (const void *first, const void *second);
@@ -41,13 +35,17 @@ struct rbtree_init {
 rbtree_t rbtree_new(const struct rbtree_init *i);
 void rbtree_free(rbtree_t t);
 
-enum rbtree_result rbtree_insert(rbtree_t t, const void *v);
+bool rbtree_insert(rbtree_t t, rbtree_node_t n);
 bool rbtree_delete(rbtree_t t, const void *v);
 
 size_t rbtree_size(rbtree_t t);
 rbtree_node_t rbtree_find(rbtree_t t, const void *v);
-void rbtree_enum(rbtree_t t, rbtree_enum_t h, void *ctx);
+void rbtree_enum(rbtree_t t, rbtree_enum_t h, void *c);
+
+rbtree_node_t rbtree_node_new(rbtree_t t, const void *v);
+void rbtree_node_free(rbtree_node_t n);
 
 void * rbtree_node_value(rbtree_node_t n);
+bool rbtree_node_is_clean(rbtree_node_t n);
 
 #endif

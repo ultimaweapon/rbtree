@@ -14,6 +14,7 @@ enum nodetype {
 
 struct rbtree_node {
 	enum nodetype type;
+	struct rbtree *owner;
 	struct rbtree_node *parent;
 	struct rbtree_node *left;
 	struct rbtree_node *right;
@@ -351,14 +352,9 @@ static void free_node(struct rbtree *t, struct rbtree_node *n)
 		c->parent = p;
 	}
 
-	// re-balance tree before freeing node.
+	// re-balancing tree before freeing node.
 	rebalance_deletion(p, n, c);
-
-	// free target node.
-	if (t->destroy) {
-		t->destroy(&n[1]);
-	}
-	t->free(n);
+	rbtree_node_free(n);
 }
 
 static void delete_node(struct rbtree *t, struct rbtree_node *n)
@@ -425,84 +421,50 @@ void rbtree_free(rbtree_t t)
 	t->free(t);
 }
 
-enum rbtree_result rbtree_insert(rbtree_t t, const void *v)
+bool rbtree_insert(rbtree_t t, rbtree_node_t n)
 {
-	size_t vs;
-	struct rbtree_node *n;
+	struct rbtree_node *c;
 
-	// allocate node.
-	vs = t->size(v);
-	n = t->alloc(sizeof(n[0]) + vs);
-	if (!n) {
-		return rbtree_nomem;
+	// check if node is clean.
+	if (!rbtree_node_is_clean(n)) {
+		return false;
 	}
 
-	// initialize node.
-	memset(n, 0, sizeof(n[0]));
-	n->type = node_red;
-	memcpy(&n[1], v, vs);
+	// find a leaf to insert.
+	c = t->root;
 
-	// insert node.
-	if (!t->root) {
-#ifdef RBTREE_DEBUG
-		printf("Inserting root node.\n");
-#endif
+	if (!c) {
 		t->root = n;
 	} else {
-		struct rbtree_node *current = t->root;
-
 		for (;;) {
-			int cmp = t->compare(v, &current[1]);
+			int r = t->compare(rbtree_node_value(n), rbtree_node_value(c));
 
-#ifdef RBTREE_DEBUG
-			printf("Checking node %s.\n", t->to_string(&current[1]));
-#endif
-
-			if (cmp > 0) {
-				if (!current->right) {
-#ifdef RBTREE_DEBUG
-					printf("Inserting %s to the right of current node.\n", t->to_string(v));
-#endif
-					n->type = node_red;
-					n->parent = current;
-					current->right = n;
-					break;
+			if (r > 0) {
+				if (c->right) {
+					c = c->right;
+					continue;
 				}
-#ifdef RBTREE_DEBUG
-				printf("Value %s is higher than current node, moving to the right.\n", t->to_string(v));
-#endif
-				current = current->right;
-			} else if (cmp < 0) {
-				if (!current->left) {
-#ifdef RBTREE_DEBUG
-					printf("Inserting %s to the left of current node.\n", t->to_string(v));
-#endif
-					n->type = node_red;
-					n->parent = current;
-					current->left = n;
-					break;
+				c->right = n;
+			} else if (r < 0) {
+				if (c->left) {
+					c = c->left;
+					continue;
 				}
-#ifdef RBTREE_DEBUG
-				printf("Value %s is lower than current node, moving to the left.\n", t->to_string(v));
-#endif
-				current = current->left;
+				c->left = n;
 			} else {
-#ifdef RBTREE_DEBUG
-				printf("Value %s is already exists.\n", t->to_string(v));
-#endif
-				return rbtree_exists;
+				return false;
 			}
+
+			n->parent = c;
+			break;
 		}
 	}
 
+	// fix up.
 	rebalance_insertion(t, n);
 	t->node++;
 
-#ifdef RBTREE_DEBUG
-	printf("Value %s inserted; there is %zd nodes in a tree.\n", t->to_string(&n[1]), t->node);
-#endif
-
-	return rbtree_success;
+	return true;
 }
 
 bool rbtree_delete(rbtree_t t, const void *v)
@@ -555,7 +517,43 @@ void rbtree_enum(rbtree_t t, rbtree_enum_t h, void *ctx)
 	enumerate_node(t->root, h, ctx);
 }
 
+rbtree_node_t rbtree_node_new(rbtree_t t, const void *v)
+{
+	size_t vs;
+	struct rbtree_node *n;
+
+	// allocate node.
+	vs = t->size(v);
+	n = t->alloc(sizeof(n[0]) + vs);
+	if (!n) {
+		return NULL;
+	}
+
+	// initialize node.
+	memset(n, 0, sizeof(n[0]));
+	memcpy(&n[1], v, vs);
+
+	n->owner = t;
+	n->type = node_red;
+
+	return n;
+}
+
+void rbtree_node_free(rbtree_node_t n)
+{
+	if (n->owner->destroy) {
+		n->owner->destroy(rbtree_node_value(n));
+	}
+
+	n->owner->free(n);
+}
+
 void * rbtree_node_value(rbtree_node_t n)
 {
 	return &n[1];
+}
+
+bool rbtree_node_is_clean(rbtree_node_t n)
+{
+	return !n->parent && !n->left && !n->right && (n->type == node_red);
 }
