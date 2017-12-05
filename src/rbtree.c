@@ -2,6 +2,9 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#ifdef RBTREE_DEBUG
+#include <stdio.h>
+#endif
 #include <string.h>
 
 enum nodetype {
@@ -23,10 +26,24 @@ struct rbtree {
 	rbtree_comparer_t compare;
 	rbtree_size_t size;
 	rbtree_destroy_t destroy;
+#ifdef RBTREE_DEBUG
+	rbtree_string_t to_string;
+#endif
 	struct rbtree_node *root;
 };
 
-static void rebalance_insertion(struct rbtree_node *i);
+static void rebalance_insertion(struct rbtree *t, struct rbtree_node *i);
+
+#ifdef RBTREE_DEBUG
+static const char * node_color(struct rbtree_node *n)
+{
+	if (n->type == node_black) {
+		return "black";
+	} else {
+		return "red";
+	}
+}
+#endif
 
 static void swap_color(struct rbtree_node *first, struct rbtree_node *second)
 {
@@ -140,7 +157,7 @@ static void rotate_right(struct rbtree_node *n)
 	n->parent = l;
 }
 
-static void rotate(struct rbtree_node *i, struct rbtree_node *p, struct rbtree_node *g, struct rbtree_node *u)
+static void rotate(struct rbtree *t, struct rbtree_node *i, struct rbtree_node *p, struct rbtree_node *g, struct rbtree_node *u)
 {
 	// the only value that can be null is uncle. the uncle is always black when
 	// we need to rotate.
@@ -154,7 +171,7 @@ static void rotate(struct rbtree_node *i, struct rbtree_node *p, struct rbtree_n
 			// parent is on the left but inserted node is on the right.
 			// rotate parent to the left. then repair parent.
 			rotate_left(p);
-			rebalance_insertion(p);
+			rebalance_insertion(t, p);
 		}
 	} else {
 		if (i == p->right) {
@@ -166,18 +183,21 @@ static void rotate(struct rbtree_node *i, struct rbtree_node *p, struct rbtree_n
 			// parent is on the right but inserted node is on the left.
 			// rotate parent to the right. then try to repair parent.
 			rotate_right(p);
-			rebalance_insertion(p);
+			rebalance_insertion(t, p);
 		}
 	}
 }
 
-static void rebalance_insertion(struct rbtree_node *i)
+static void rebalance_insertion(struct rbtree *t, struct rbtree_node *i)
 {
 	// inserted node is always red.
 	struct rbtree_node *p = i->parent;
 
 	if (!p) {
 		// target node is the root node.
+#ifdef RBTREE_DEBUG
+		printf("Inserting node is a root node, paint it to black.\n");
+#endif
 		i->type = node_black;
 	} else if (p->type == node_red) {
 		// current node and parent node are red node. all children of red node
@@ -193,16 +213,19 @@ static void rebalance_insertion(struct rbtree_node *i)
 
 		if (!u || u->type == node_black) {
 			// uncle is black.
-			rotate(i, p, g, u);
+			rotate(t, i, p, g, u);
 		} else {
 			// uncle is red. both uncle and parent is red, repaint its to black.
 			p->type = node_black;
 			u->type = node_black;
 			g->type = node_red; // grand parent will always black since all children are red.
-			rebalance_insertion(g); // grand parent might violate rules, so try to repair it.
+			rebalance_insertion(t, g); // grand parent might violate rules, so try to repair it.
 		}
 	} else {
 		// there is nothing to do if parent node is black.
+#ifdef RBTREE_DEBUG
+		printf("Parent node is black, target node to re-balance is %s.\n", node_color(i));
+#endif
 	}
 }
 
@@ -360,8 +383,15 @@ static void destroy_node(rbtree_node_t node, void *context)
 	struct rbtree *t = context;
 
 	if (t->destroy) {
+#ifdef RBTREE_DEBUG
+		printf("destroying data on node %s\n", t->to_string(&node[1]));
+#endif
 		t->destroy(&node[1]);
 	}
+
+#ifdef RBTREE_DEBUG
+	printf("freeing memory for node %s", t->to_string(&node[1]));
+#endif
 	t->free(node);
 }
 
@@ -381,6 +411,10 @@ rbtree_t rbtree_new(const struct rbtree_init *i)
 	t->compare = i->compare;
 	t->size = i->size;
 	t->destroy = i->destroy;
+
+#ifdef RBTREE_DEBUG
+	t->to_string = i->to_string;
+#endif
 
 	return t;
 }
@@ -410,6 +444,9 @@ enum rbtree_result rbtree_insert(rbtree_t t, const void *v)
 
 	// insert node.
 	if (!t->root) {
+#ifdef RBTREE_DEBUG
+		printf("Inserting root node.\n");
+#endif
 		t->root = n;
 	} else {
 		struct rbtree_node *current = t->root;
@@ -417,30 +454,53 @@ enum rbtree_result rbtree_insert(rbtree_t t, const void *v)
 		for (;;) {
 			int cmp = t->compare(v, &current[1]);
 
+#ifdef RBTREE_DEBUG
+			printf("Checking node %s.\n", t->to_string(&current[1]));
+#endif
+
 			if (cmp > 0) {
 				if (!current->right) {
+#ifdef RBTREE_DEBUG
+					printf("Inserting %s to the right of current node.\n", t->to_string(v));
+#endif
 					n->type = node_red;
 					n->parent = current;
 					current->right = n;
 					break;
 				}
+#ifdef RBTREE_DEBUG
+				printf("Value %s is higher than current node, moving to the right.\n", t->to_string(v));
+#endif
 				current = current->right;
 			} else if (cmp < 0) {
 				if (!current->left) {
+#ifdef RBTREE_DEBUG
+					printf("Inserting %s to the left of current node.\n", t->to_string(v));
+#endif
 					n->type = node_red;
 					n->parent = current;
 					current->left = n;
 					break;
 				}
+#ifdef RBTREE_DEBUG
+				printf("Value %s is lower than current node, moving to the left.\n", t->to_string(v));
+#endif
 				current = current->left;
 			} else {
+#ifdef RBTREE_DEBUG
+				printf("Value %s is already exists.\n", t->to_string(v));
+#endif
 				return rbtree_exists;
 			}
 		}
 	}
 
-	rebalance_insertion(n);
+	rebalance_insertion(t, n);
 	t->node++;
+
+#ifdef RBTREE_DEBUG
+	printf("Value %s inserted; there is %zd nodes in a tree.\n", t->to_string(&n[1]), t->node);
+#endif
 
 	return rbtree_success;
 }

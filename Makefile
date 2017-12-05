@@ -14,5 +14,8 @@ clean:
 test: all
 	$(MAKE) -C tests
 
+visualizer:
+	$(MAKE) -C src visualizer
+
 $(OUTDIR):
 	mkdir $@

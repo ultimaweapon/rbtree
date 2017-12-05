@@ -23,12 +23,19 @@ typedef size_t (*rbtree_size_t) (const void *value);
 typedef void (*rbtree_destroy_t) (void *value);
 typedef void (*rbtree_enum_t) (rbtree_node_t node, void *context);
 
+#ifdef RBTREE_DEBUG
+typedef const char * (*rbtree_string_t) (const void *value);
+#endif
+
 struct rbtree_init {
-    rbtree_alloc_t alloc;
-    rbtree_free_t free;
-    rbtree_comparer_t compare;
-    rbtree_size_t size;
-    rbtree_destroy_t destroy;
+	rbtree_alloc_t alloc;
+	rbtree_free_t free;
+	rbtree_comparer_t compare;
+	rbtree_size_t size;
+	rbtree_destroy_t destroy;
+#ifdef RBTREE_DEBUG
+	rbtree_string_t to_string;
+#endif
 };
 
 rbtree_t rbtree_new(const struct rbtree_init *i);
