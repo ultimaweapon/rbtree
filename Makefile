@@ -1,21 +1,7 @@
-.PHONY: all clean test
+.PHONY: all clean
 
-OUTDIR = lib
-
-all: $(OUTDIR)
+all:
 	$(MAKE) -C src
-	cp src/librbtree.a $(OUTDIR)/
 
 clean:
-	$(MAKE) -C tests clean
 	$(MAKE) -C src clean
-	rm -f $(OUTDIR)/*
-
-test: all
-	$(MAKE) -C tests
-
-visualizer:
-	$(MAKE) -C src visualizer
-
-$(OUTDIR):
-	mkdir $@

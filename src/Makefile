@@ -1,17 +1,11 @@
 .PHONY: all clean
 
-OUTPUT = librbtree.a
-CPPFLAGS = -O3 -Wall -I../include
-SOURCES = rbtree.c
+CFLAGS = -Wall
 
-all: $(OUTPUT)
+all: test
+	./test
 
 clean:
-	rm -f $(OUTPUT)
-	find . -iname '*.o' -delete
+	$(RM) test *.o
 
-visualizer: CPPFLAGS += -DRBTREE_DEBUG
-visualizer: visualizer.o $(SOURCES:.c=.o)
-
-$(OUTPUT): $(SOURCES:.c=.o)
-	$(AR) rcs $@ $+
+test: rbtree.o
